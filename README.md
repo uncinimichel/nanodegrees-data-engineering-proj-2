@@ -1,4 +1,4 @@
-# Data Modeling with Postgres
+# Data Modeling with REDSHIFT
   
 In this project I am creating a Redshift database called sparkifydb with the following tables:
 

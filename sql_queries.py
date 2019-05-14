@@ -2,10 +2,11 @@ import configparser
 
 # CONFIG
 config = configparser.ConfigParser()
-config.read('~/.nanodegrees_dwh.cfg')
+config.read('~/.nanodegree_dwh.cfg')
 
 LOG_DATA = config.get("S3", "LOG_DATA")
 SONG_DATA = config.get("S3", "SONG_DATA")
+LOG_JSONPATH = config.get("S3", "LOG_JSONPATH")
 REGION = config.get("S3", "REGION")
 
 AWS_IAM = config.get("IAM_ROLE", "ARN")
@@ -25,24 +26,24 @@ time_table_drop = "DROP table IF EXISTS time"
 staging_events_table_create = ("""
     CREATE TABLE staging_events 
     (
-      artist    VARCHAR,
-      auth        VARCHAR,
-      firstName        VARCHAR,
+      artist    VARCHAR(256),
+      auth        VARCHAR(256),
+      firstname        VARCHAR(256),
       gender    CHAR,
-      itemInSession        DECIMAL ,
-      lastName        VARCHAR,
+      iteminsession        DECIMAL ,
+      lastname        VARCHAR(256),
       length      DECIMAL ,
-      level       VARCHAR,
-      location        VARCHAR,
-      method   VARCHAR,
-      page   VARCHAR,
+      level       VARCHAR(256),
+      location        VARCHAR(256),
+      method   VARCHAR(256),
+      page   VARCHAR(256),
       registration   BIGINT, 
-      sessionId        DECIMAL ,
-      song   VARCHAR,
+      sessionid        DECIMAL ,
+      song   VARCHAR(256),
       status        DECIMAL ,
-      timestamp        TIMESTAMP,
-      userAgent   VARCHAR,
-      userId   VARCHAR
+      ts        int8,
+      useragent   VARCHAR(256),
+      userid   VARCHAR(256)
     );
 """)
 
@@ -50,20 +51,20 @@ staging_songs_table_create = ("""
     CREATE TABLE staging_songs 
     (
       num_songs    DECIMAL ,
-      artist_id        VARCHAR,
+      artist_id        VARCHAR(256),
       artist_latitude        DECIMAL,
       artist_longitude    DECIMAL,
-      artist_location        VARCHAR,
-      artist_name      VARCHAR,
-      song_id       VARCHAR,
-      title        VARCHAR,
+      artist_location        VARCHAR(256),
+      artist_name      VARCHAR(256),
+      song_id       VARCHAR(256),
+      title        VARCHAR(256),
       duration   DECIMAL ,
       year   DECIMAL 
     );
 """)
 
 songplay_table_create = ("""
-CREATE TABLE songplays (songplay_id IDENTITY(0,1) PRIMARY KEY, 
+CREATE TABLE songplays (songplay_id BIGINT IDENTITY(0,1) PRIMARY KEY, 
                        start_time timestamp NOT NULL sortkey, 
                        user_id varchar NOT NULL, 
                        level varchar,
@@ -118,14 +119,15 @@ diststyle all;
 staging_events_copy = ("""
     copy staging_events from {}
     credentials 'aws_iam_role={}'
-    compupdate off region '{}' format as json 'auto';
-""").format(LOG_DATA, AWS_IAM, REGION)
+    compupdate off region '{}' format as json {};
+""").format(LOG_DATA, AWS_IAM, REGION, LOG_JSONPATH)
 
 staging_songs_copy = ("""
-    copy staging_songs from '{}'
+    copy staging_songs from {}
     credentials 'aws_iam_role={}'
-    compupdate off region '{}' format as json 'auto';
+    compupdate off region '{}' format as json 'auto' truncatecolumns;
 """).format(SONG_DATA, AWS_IAM, REGION)
+
 
 # FINAL TABLES
 
@@ -136,13 +138,13 @@ songplay_table_insert = ("""
 INSERT INTO songplays (start_time, user_id, level, song_id, artist_id, session_id, location, user_agent)
 (        SELECT
                 events.start_time, 
-                events.userId, 
+                events.userid, 
                 events.level, 
                 songs.song_id, 
                 songs.artist_id, 
-                events.sessionId, 
+                events.sessionid, 
                 events.location, 
-                events.userAgent
+                events.useragent
                 FROM    
                     (SELECT TIMESTAMP 'epoch' + ts/1000 * interval '1 second' AS start_time, *
                     FROM staging_events
@@ -155,7 +157,7 @@ INSERT INTO songplays (start_time, user_id, level, song_id, artist_id, session_i
 
 user_table_insert = ("""
 INSERT INTO users (user_id, first_name, last_name, gender, level)
-(SELECT distinct userId, firstName, lastName, gender, level
+(SELECT distinct userid, firstname, lastname, gender, level
         FROM staging_events
         WHERE page='NextSong')
 """)
